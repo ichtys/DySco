@@ -1,3 +1,17 @@
+/*--------------------------------------------------------------------------
+ * Ox DySco  Package
+ * DySco-Pack pack is fully operational but the author does not provide any liability,
+ * including liability for financial losses.
+ * The package may be used freely for non-commercial use.
+ *
+ * The handbook is available at  web addrressXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+ *
+ * version: 		2.1 (July 2013)
+ * copright: 		Philipp Andres, University of Cambrigde, k.philipp.andres@gmail.com
+ * 
+ *
+ *--------------------------------------------------------------------------*/
+
 #include <oxstd.h>
 #include <arma.h>
 #import <modelbase>
@@ -5,7 +19,7 @@
 #include <oxdraw.h>
 #include <oxfloat.h>
 #import <maximize>
-  		
+			
 // vModelstruct = [ARLags, MALags, Leverage, AR2comp,MA2comp]
 // m_vStruct = [ARLags, MALags, vShapeParas, Levergae, AR2comp, MA2comp]
 // vP = [const, AR, MA, Shape, Lev, ARSr, MASr]
@@ -76,7 +90,9 @@ DrawEpsSqACF(const iPos);
 DrawEpsSqACFOoS(const iPos);
 DrawScoreSqACFOoS(const iPos);
 DrawScoreSqACF(const iPos);
+DrawQQPlotPits2(const iPos);
 Draw(const iPos,const sFileName, const mCoefVal);
+
 
 
 Beta(const x, const y);
@@ -100,7 +116,7 @@ EXScore(vScore, const vEps,const vLambda, const vP,const cMaxpq);
 EXMEMScore(vScore, const vEps,const vLambda,const vY, const vP, const cMaxpq);
 
 
-//Estimate();
+Estimate();
 FEM(const forc, const obs, const bOoS);
 FEM2();
 FLambdaFilter(vLambda,vU, const vY, const vP, const vStruct);
@@ -164,6 +180,7 @@ LambdaFilter(vLambda, vU, const vY, const vP, const vStruct, const cDist);
 LambdaFilter2comp(vLambda, vU, const vY, const vP, const vStruct, const cDist);
 LBQTest(const ma, const vLag);
 LBQTest2(const vLag);
+LBQTestScores(const vLag);
 LLOGLik(const vP, const adFunc, const avScore, const amHessian);
 LLOGLikVal(const vP, const cStart);
 LNORMLikVal(const vP, const cStart);
@@ -218,7 +235,8 @@ QQPlotDrawEpsOoS(const iPos, const vEps);
 QQPlotDrawScore(const iPos, const vU);
 QQPlotDrawScoreOoS(const iPos, const vU);
 QQPlotScores(const iPos, const cDist, const vShapePara, const vScores);
-
+QQPlotPits2(const iPos);
+QQPlotPits(const iPos,const vScore);
 
 
 ReceiveData();														 
@@ -241,7 +259,6 @@ SetMaxIter(const cMaxIter);
 SendSpecials();
 SendVarStatus();
 SendMenu(const sMenu);
-SetModelSettings(const aValues);
 SetAutoStartVals(const iAutoStartVals);
 SetNumberBins(const cBins);
 SetTruePar(const vBeta);
@@ -293,7 +310,7 @@ println("");
 println(" -----  Please cite DySco-Pack whenever used ------- ");
 println("");
 	println("@TECHREPORT{Dynamic Score Models for Positive Variables (DySco-Pos), OX Pack Manual v2.0,\n"
-            " AUTHOR = {Philipp K. Andres, Andrew C. Harvey},\n",
+            " AUTHOR = {Philipp K. Andres},\n",
             " TITLE = {Dynamic Score Models for Positive Variables (DySco-Pos): An Object-Oriented Package for Ox},\n",
             " INSTITUTION = {Faculty of Economics, Cambridge University},\n",
             " YEAR = {2012},\n",
@@ -312,21 +329,30 @@ DySco::InitData()
 //	m_cTAll  = sizer(m_mData);
 
 	m_vY = GetGroup(Y_VAR);
-//	m_mLev = GetGroup(X_VAR);
+	m_mLev = GetGroup(X_VAR);
 
 //	//m_mLev = m_mData[][1];//GetGroup(X_VAR);
 //	if (rows(m_mData)!=rows(m_mLev)) {oxwarning("Leverage Series not of same length as data series. Please correct."); exit(0);}
 
-//	println(m_mData[0:10][]);
+
 //	println(m_vY);
 	//println(m_vY);
 	m_cTAll  = sizer(m_mData);
+//		println(m_mData[0:10][]);
+		
 	//println("m_cTAll",m_cTAll);
 
 	if (m_mData == <>) {oxwarning("Please select the Y variable"); exit(0);}
 
 	decl cY = columns(m_vY);
 	if (cY != 1){ oxwarning("Only univariate models allowed"); exit(0); }
+
+	decl cL = columns(m_mLev);
+//	println(m_mLev[1:10][]);
+//	println("cL :",cL);
+	if (cL > 1){ oxwarning("Only one leverage series allowed"); exit(0); }
+
+	
 	if (ismissing(log(m_vY))){oxwarning("Dataset contains zero or negative observations. Please remove them");exit(0);}
 
     return TRUE;
@@ -401,10 +427,10 @@ DySco::CheckPara(const vPar)
 		}
 	if (Z > 0){
 		oxwarning(println("Choosen long run AR parameters dont all exceed short run AR parameters \n",
-		"Optimisation terminated prematurely. Found parameter vector is:, ", m_vP',
+		"Optimisation terminated prematurely. Found parameter vector is:, ", vPar',
 		"\n Try using different starting values"));
 	//	println("Parameter Vecor: ", m_vPar');
-		exit(0);
+	//	exit(0);
 		}
 	}
 // long run MA parameters smaller than short run MA parameters
@@ -451,7 +477,7 @@ DySco::GetDistriString()
  else if (m_cDist==LLOG) return "Log-Logistic";
  else if (m_cDist==BURR) return "Burr";
  else if (m_cDist==F) return "F";
- else if (m_cDist==DAG) return "Dagnum";
+ else if (m_cDist==DAG) return "Dagum";
  else if (m_cDist==GB2) return "Generalized Beta Two";}
 
 DySco::SetModelClass(const iModelClass)
@@ -484,6 +510,9 @@ DySco::GetNumAlgoString()
 DySco::SetStruct(vStruct, const vModelStruct, const cDist)
 {// vModelstruct = [ARLags, MALags, Leverage, AR2comp,MA2comp]
 // m_vStruct = [ARLags, MALags, vShapeParas, Levergae, AR2comp, MA2comp]
+ // rule out negative AR/MA lags
+ if (minc(vModelStruct).<0){ oxwarning("Specified AR or MA lags cannot be negative. Leverage must take binary values.  Please correct");
+ 						exit(0);}
  vStruct[0:1] = vModelStruct[0:1];						
  if (cDist == EX || cDist == LNORM) vStruct[2][0] = 0;
  if (cDist == GA || cDist == WBL || cDist == LLOG) vStruct[2][0] = 1;
@@ -597,14 +626,14 @@ vLambda[0][0:maxpq-1] = log(meanr(vY));
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,vStruct);
 for(decl i=maxpq; i<cT;i++){
-	vLambda[0][i] = amPar[0][0]*(1-sumc(amPar[1][0]))+amPar[1][0]'*reversec(vLambda[0][i-p:i-1])+amPar[2][0]'*reversec(vY[i-q:i-1]./exp(vLambda[0][i-q:i-1]));
+	vLambda[0][i] = amPar[0][0]*(1-sumc(amPar[1][0]))+amPar[1][0]'*reversec(vLambda[0][i-p:i-1])+amPar[2][0]'*reversec(log(vY[i-q:i-1]./exp(vLambda[0][i-q:i-1])));
 	if (vStruct[3]==1){vLambda[0][i] += amPar[4][0]*vLevAux[i-1][0];}
 	}
 decl cStart = meanc(vLambda[0]);
 vLambda[0][0:maxpq-1] = cStart;
 // redo- lambda recursion but with starting value set to average of first lambda recursion
 for(decl i=maxpq; i<cT;i++){
-	vLambda[0][i] = amPar[0][0]*(1-sumc(amPar[1][0]))+amPar[1][0]'*reversec(vLambda[0][i-p:i-1])+amPar[2][0]'*reversec(vY[i-q:i-1]./exp(vLambda[0][i-q:i-1]));
+	vLambda[0][i] = amPar[0][0]*(1-sumc(amPar[1][0]))+amPar[1][0]'*reversec(vLambda[0][i-p:i-1])+amPar[2][0]'*reversec(log(vY[i-q:i-1]./exp(vLambda[0][i-q:i-1])));
 	if (vStruct[3]==1){vLambda[0][i] += amPar[4][0]*vLevAux[i-1][0];}
 	}
 }
@@ -620,16 +649,16 @@ decl vLambdaLR= new matrix[1][cT];
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,vStruct);
 for(decl i=max(maxpq, maxpqSR); i<cT;i++){
-	vLambdaSR[0][i] = amPar[5][0]'*reversec(vLambdaSR[0][i-pS:i-1])' + amPar[6][0]'*reversec(vY[i-qS:i-1]./exp(vLambdaSR[0][i-qS:i-1])');
+	vLambdaSR[0][i] = amPar[5][0]'*reversec(vLambdaSR[0][i-pS:i-1])' + amPar[6][0]'*reversec(log(vY[i-qS:i-1]./exp(vLambdaSR[0][i-qS:i-1])'));
 	if (vStruct[3]==1){vLambdaSR[0][i] += amPar[4][0]*vLevAux[i-1];}
-	vLambdaLR[0][i] = amPar[1][0]'*reversec(vLambdaLR[0][i-p:i-1])' +amPar[2][0]'*reversec(vY[i-q:i-1]./exp(vLambdaLR[0][i-q:i-1])');
+	vLambdaLR[0][i] = amPar[1][0]'*reversec(vLambdaLR[0][i-p:i-1])' +amPar[2][0]'*reversec(log(vY[i-q:i-1]./exp(vLambdaLR[0][i-q:i-1])'));
 	vLambda[0][i] = amPar[0][0]*(1-sumc(amPar[1][0]))+ vLambdaLR[0][i] + vLambdaSR[0][i];
 	}
 }
 DySco::LambdaFilter(vLambda, vU, const vY, const vP, const vStruct, const cDist)
 {decl cT = rows(vY); decl p = vStruct[0]; decl q = vStruct[1]; decl maxpq = max(p, q);
 decl vLevAux=new matrix[cT][1];
-if (vStruct[3]==1) {vLevAux=GetLevAux(&vLevAux, m_mLev);}
+if (vStruct[3]==1) {vLevAux=GetLevAux(&vLevAux, m_mData[][1]);}
 if (m_iModelClass == SCORE) vLambda[0][0:maxpq-1] = vP[0];
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,vStruct);
@@ -644,7 +673,7 @@ for(decl i=maxpq; i<cT;i++){
 	else if (cDist==LNORM)		vU[0][i] = log(vY[i])-vLambda[0][i];
 	else if (cDist==LLOG)		vU[0][i] = -1+2*vY[i]^(amPar[3][0])*exp(-amPar[3][0]*vLambda[0][i])/(1+vY[i]^(amPar[3][0])*exp(-amPar[3][0]*vLambda[0][i]));
 	else if (cDist==BURR)		vU[0][i] = -1+(amPar[3][0][1]+1)*vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i])/(1+vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i]));
-	else if (cDist==F)			vU[0][i] = -0.5*amPar[3][0][0]+ 0.5*(amPar[3][0][0]+amPar[3][0][1])*amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1])/(amPar[3][0][0]+amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1]));
+	else if (cDist==F)			vU[0][i] = -0.5*amPar[3][0][0]+ 0.5*(amPar[3][0][0]+amPar[3][0][1])*amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1])/(amPar[3][0][1]+amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1]));
 	else if (cDist==DAG)		vU[0][i] = -amPar[3][0][1]+ (amPar[3][0][1]+1)*vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i])/(1+vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i]));
 	else if (cDist==GB2)			{ decl eps = vY[i]/exp(vLambda[0][i]);
 								vU[0][i] = -amPar[3][0][1]+(amPar[3][0][1]+amPar[3][0][2])*eps^(amPar[3][0][0])/(1+eps^(amPar[3][0][0]));}
@@ -656,7 +685,7 @@ DySco::LambdaFilter2comp(vLambda, vU, const vY, const vP, const vStruct, const c
 {decl cT = rows(vY); decl p = vStruct[0]; decl q = vStruct[1]; decl maxpq = max(p, q);
 decl pS = vStruct[4]; decl qS = vStruct[5]; decl maxpqSR = max(pS, qS);
 decl vLevAux=new matrix[cT][1];
-if (vStruct[3]==1) {vLevAux=GetLevAux(&vLevAux, m_mLev);}
+if (vStruct[3]==1) {vLevAux=GetLevAux(&vLevAux, m_mData[][1]);}
 vLambda[0][0:maxpq-1] = vP[0];
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,vStruct);
@@ -674,7 +703,7 @@ for(decl i=max(maxpq, maxpqSR); i<cT;i++){
 	else if (cDist==LNORM)		vU[0][i] = log(vY[i])-vLambda[0][i];
 	else if (cDist==LLOG)		vU[0][i] = -1+2*vY[i]^(amPar[3][0])*exp(-amPar[3][0]*vLambda[0][i])/(1+vY[i]^(amPar[3][0])*exp(-amPar[3][0]*vLambda[0][i]));
 	else if (cDist==BURR)		vU[0][i] = -1+(amPar[3][0][1]+1)*vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i])/(1+vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i]));
-	else if (cDist==F)			vU[0][i] = -0.5*amPar[3][0][0]+ 0.5*(amPar[3][0][0]+amPar[3][0][1])*amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1])/(amPar[3][0][0]+amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1]));
+	else if (cDist==F)			vU[0][i] = -0.5*amPar[3][0][0]+ 0.5*(amPar[3][0][0]+amPar[3][0][1])*amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1])/(amPar[3][0][1]+amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1]));
 	else if (cDist==DAG)		vU[0][i] = -amPar[3][0][1]+ (amPar[3][0][1]+1)*vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i])/(1+vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i]));
 	else if (cDist==GB2)			{ decl eps = vY[i]/exp(vLambda[0][i]);
 								vU[0][i] = -amPar[3][0][1]+(amPar[3][0][1]+amPar[3][0][2])*eps^(amPar[3][0][0])/(1+eps^(amPar[3][0][0]));}
@@ -1379,11 +1408,11 @@ adFunc[0] = double(( (cT-cMaxpq)*(log(amPar[3][0][0])-loggamma(amPar[3][0][1])) 
 //	(avScore[0])[3] = vScore[3];
 //	(avScore[0])[4] = vScore[4];
 //}
-//if (amHessian){
-//	decl mAnaHess = new matrix[5][5];
-//	GGAAnaCovMatrix(&mAnaHess,vP, (m_iT1sel-m_iT2sel+1), maxpq);
-//    (amHessian[0])= mAnaHess;
-//}
+if (amHessian){
+	decl mAnaHess = new matrix[5][5];
+	GGAAnaCovMatrix(&mAnaHess,vP, (m_iT1sel-m_iT2sel+1), 1);
+    (amHessian[0])= mAnaHess;
+}
 return 1;
 }
 
@@ -1400,8 +1429,8 @@ else  				LambdaFilter2comp(&vLambda, &vU, m_mData[][0], vP, m_vStruct, GGA);
 else if (m_iModelClass == MEM){
 	MEMLambdaFilter(&vLambda, m_mData[][0], vP, m_vStruct);
 }
-DrawTMatrix(0,vLambda', {"Lambda"});
-ShowDrawWindow();
+//DrawTMatrix(0,vLambda', {"Lambda"});
+//ShowDrawWindow();
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,m_vStruct);
 decl vLikContr = new matrix[cTIn][1];
@@ -1413,41 +1442,46 @@ return LikVal;
 }
 
 DySco::GGAAnaCovMatrix(mAnaHess, const vO, const cT, const cMaxpq)
-{	decl a,b,c,sigma_u_2;
-	a = vO[1]+vO[2]*vO[3]*vO[4];
-	b = vO[1]^(2)-2*vO[1]*vO[2]*vO[3]*vO[4]+vO[2]^(2)*vO[3]^(2)*(1+vO[4])*vO[4];
+// Fix for burr was to change Ana Cov Matrix!
+{decl a,b,c;
+	a = vO[1]-vO[2]*vO[3]*vO[4];
+	b = vO[1]^(2)-2*vO[1]*vO[2]*vO[3]*vO[4]+vO[2]^(2)*(1+vO[3])*vO[3]*vO[4]^(2);
 	c = -vO[2]*vO[3]*vO[4];	
-	sigma_u_2 =vO[3]^(2)*vO[4];
-	decl fact = vO[3]^(2)*vO[4]/(1-b); // factor in front of dynamic elements of hessian
-
-	if (cabs(vO[1])>=1 || cabs(b)>=1){oxwarning("Imposed Parameter Restrictions on phi or b not met possible solution: try different starting value");
-	    exit(0);}
-	
+	decl fact = vO[3]*vO[4]^(2)/(1-b); //vO[3]/(1-b);//vO[3]*vO[4]^(2)/(1-b); // factor in front of dynamic elements of hessian
+	decl sigma_u2 = vO[3];
 	// 1) dynamic parameters
 	mAnaHess[0][0][0] =  fact*(1-vO[1])^(2)*(1+a)/(1-a) ;
-	mAnaHess[0][1][1] =	 fact*vO[2]*sigma_u_2*(1+a*vO[1])/((1-vO[1]^(2))*(1-a*vO[1]));
-	mAnaHess[0][2][2] =  fact*sigma_u_2;
+	mAnaHess[0][1][1] =  fact*vO[2]^(2)*sigma_u2*(1+a*vO[1])/((1-vO[1]^(2))*(1-a*vO[1]));
+	mAnaHess[0][2][2] =  fact*sigma_u2;
 	mAnaHess[0][0][1] =  fact*a*c*vO[2]*(1-vO[1])/((1-a)*(1-a*vO[1]));
 	mAnaHess[0][1][0] =  mAnaHess[0][0][1];
 	mAnaHess[0][0][2] =  fact*c*(1-vO[1])/(1-a);
 	mAnaHess[0][2][0] =  mAnaHess[0][0][2];
-	mAnaHess[0][1][2] =  fact*a*vO[2]*sigma_u_2/(1-a*vO[1]);
+	mAnaHess[0][1][2] =  fact*a*vO[2]*sigma_u2/(1-a*vO[1]);
 	mAnaHess[0][2][1] =  mAnaHess[0][1][2];
-	// 2) Off-diagonal elements with shape parameters
-	mAnaHess[0][3][3] = vO[3]^(-2)*(1+ polygamma(vO[4],0)*(2+polygamma(vO[4],0))+vO[4]*polygamma(vO[4],1) );
-	mAnaHess[0][4][4] = polygamma(vO[4], 1);
-	mAnaHess[0][3][4] = -polygamma(vO[4],0)/vO[3];
+
+
+	mAnaHess[0][3][3] = polygamma(vO[3], 1);
+	//mAnaHess[0][4][4] =  vO[4]^(-2)*(1- polygamma(vO[3],0)*(2+polygamma(vO[3],0))+vO[3]*polygamma(vO[3],1) );
+	mAnaHess[0][4][4] = vO[4]^(-2)*(1+vO[3]*(polygamma(vO[3]+1,0)^(2)+polygamma(vO[3]+1,1) ) );
+//	mAnaHess[0][4][4] = -vO[4]^(-2)*(1-(polygamma(vO[3]+1,0)^(2)+polygamma(vO[3]+1,1) ) );
+	mAnaHess[0][3][4] = polygamma(vO[3],0)/vO[4];
 	mAnaHess[0][4][3] = mAnaHess[0][3][4];
 	 // 3) correlation dynamic/scale parameter
-	mAnaHess[0][0][3] = -1*(vO[4]*polygamma(vO[4],0)+1)*(1-vO[1])/(1-a);
-	mAnaHess[0][3][0] = mAnaHess[0][0][3];
-	mAnaHess[0][0][4] = -vO[3]*(1-vO[1])/(1-a);
+	mAnaHess[0][0][4] =	-vO[3]*polygamma(vO[3]+1,0)*(1-vO[1])/(vO[4]*(1-a));
+//	mAnaHess[0][0][4] = -1*(vO[3]*polygamma(vO[3],0)+1)*(1-vO[1])/(1-a);
+//	mAnaHess[0][0][4] = -vO[4]*gammafact(vO[3])*polygamma(1+vO[3],0)*(1-vO[1])/(1-a);
 	mAnaHess[0][4][0] = mAnaHess[0][0][4];
-
+	mAnaHess[0][0][3] = vO[4]*(1-vO[1])/(1-a);
+	mAnaHess[0][3][0] = mAnaHess[0][0][3];
+	
 	mAnaHess[0] = -mAnaHess[0];
+
+//	println(mAnaHess[0]);
 }
 
 
+////////////////////////// MEM  stuff ///////////////////////////////
 DySco::GGAMEMLik(const vP, const adFunc, const avScore, const amHessian) 
 {decl cT = rows(m_vY); decl p = m_vStruct[0]; decl q = m_vStruct[1]; decl cMaxpq = max(p, q);
 decl vLambda = new matrix[m_iT2sel-m_iT1sel+1][1];
@@ -1839,8 +1873,8 @@ else  				LambdaFilter2comp(&vLambda, &vU, m_mData[][0], vP, m_vStruct, BURR);
 else if (m_iModelClass == MEM){
 	MEMLambdaFilter(&vLambda, m_mData[][0], vP, m_vStruct);
 }
-DrawTMatrix(0,vLambda', {"Lambda"});
-ShowDrawWindow();
+//DrawTMatrix(0,vLambda', {"Lambda"});
+//ShowDrawWindow();
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,m_vStruct);
 decl vLikContr = new matrix[cTIn][1];
@@ -2035,7 +2069,7 @@ return mAnaHess[0];
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/////////////////// Dagnum Distribution ////////////////////////////////////////////
+/////////////////// Dagum Distribution ////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 DySco::DAGLambdaFilter(vLambda,vU, const vY, const vP, const vStruct)
 { decl cT=rows(vY);	 decl p = vStruct[0]; decl q = vStruct[1];decl maxpq = max(p, q);
@@ -2050,7 +2084,7 @@ for(decl i=maxpq; i<cT;i++){
 	vLambda[0][i] = amPar[0][0]*(1-sumc(amPar[1][0]))+amPar[1][0]'*reversec(vLambda[0][i-p:i-1])+amPar[2][0]'*reversec(vU[0][i-q:i-1]);
 	if (vStruct[3]==1){vLambda[0][i] += amPar[4][0]*vLevAux[i-1][0];}
 	vU[0][i] = -amPar[3][0][1]+ (amPar[3][0][1]+1)*vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i])/(1+vY[i]^(amPar[3][0][0])*exp(-amPar[3][0][0]*vLambda[0][i]));
-	// Dagnum type II
+	// Dagum type II
 //		vU[0][i] = 1 - (amPar[3][0][1]+1)*vY[i]^(-amPar[3][0][0])*exp(amPar[3][0][0]*vLambda[0][i])/(1+vY[i]^(-amPar[3][0][0])*exp(amPar[3][0][0]*vLambda[0][i]));	
 	}
 //return vLambda[0]~vU;
@@ -2067,7 +2101,7 @@ else  LambdaFilter2comp(&vLambda, &vU, m_vY, vP, m_vStruct, DAG);
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,m_vStruct);
 adFunc[0] = double(log(amPar[3][0][0])-log(Beta(amPar[3][0][1],1))+ (m_iT2sel-m_iT1sel)^(-1)*(amPar[3][0][0]*amPar[3][0][1]-1)*sumc(log(m_vY[1:]))-(m_iT2sel-m_iT1sel)^(-1)*amPar[3][0][0]*amPar[3][0][1]*sumc(vLambda[1:]) - (m_iT2sel-m_iT1sel)^(-1)*(amPar[3][0][1]+1)*sumc(log((m_vY[1:]./exp(vLambda[1:])).^(amPar[3][0][0])+1))  );
-// Dagnum type II
+// Dagum type II
 //adFunc[0] = double(log(amPar[3][0][0])+(log(1-amPar[3][0][0]))+ log(amPar[3][0][1]) - (m_iT2sel-m_iT1sel)^(-1)*(amPar[3][0][0]+1)*sumc(log(m_vY[1:]))+(m_iT2sel-m_iT1sel)^(-1)*amPar[3][0][0]*sumc(vLambda[1:]) + (m_iT2sel-m_iT1sel)^(-1)*(-amPar[3][0][1]-1)*sumc(log((m_vY[1:]./exp(vLambda[1:])).^(-amPar[3][0][0])+1))  );
 
 if (isarray(avScore)){  // if analytical score should be used in maximisation
@@ -2095,8 +2129,8 @@ else  				LambdaFilter2comp(&vLambda, &vU, m_mData[][0], vP, m_vStruct, DAG);
 else if (m_iModelClass == MEM){
 	MEMLambdaFilter(&vLambda, m_mData[][0], vP, m_vStruct);
 }
-DrawTMatrix(0,vLambda', {"Lambda"});
-ShowDrawWindow();
+//DrawTMatrix(0,vLambda', {"Lambda"});
+//ShowDrawWindow();
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,m_vStruct);
 decl vLikContr = new matrix[cTIn][1];
@@ -2205,19 +2239,21 @@ DySco::FLambdaFilter(vLambda,vU, const vY, const vP, const vStruct)
 { decl cT=rows(vY);	 decl p = vStruct[0]; decl q = vStruct[1];decl maxpq = max(p, q);
 decl vLevAux=new matrix[cT][1];
 if (vStruct[3]==1) {vLevAux=GetLevAux(&vLevAux, m_mLev);}
-decl u = 0; 
+decl u = 0,b,eps; 
 vLambda[0][0:maxpq-1] = vP[0];
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,vStruct);
-//decl vU = new matrix[cT][1];
-//println(amPar);
-//println(amPar[3][0][0]~	amPar[3][0][1]);
-//println( amPar[0][0]	 ~amPar[1][0] ~		 amPar[2][0]);
 for(decl i=maxpq; i<cT;i++){
 	vLambda[0][i] = amPar[0][0]*(1-sumc(amPar[1][0]))+amPar[1][0]'*reversec(vLambda[0][i-p:i-1])+amPar[2][0]'*reversec(vU[0][i-q:i-1]);
 	if (vStruct[3]==1){vLambda[0][i] += amPar[4][0]*vLevAux[i-1][0];}
-	vU[0][i] = -0.5*amPar[3][0][0]+ 0.5*(amPar[3][0][0]+amPar[3][0][1])*amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1])/(amPar[3][0][0]+amPar[3][0][0]*vY[i-1]*exp(-vLambda[0][i-1]));
+	eps = vY[i-1]*exp(-vLambda[0][i-1]);
+	b = amPar[3][0][0]*eps/(amPar[3][0][0]*eps + amPar[3][0][1]);
+	vU[0][i] = -0.5*amPar[3][0][0]+ 0.5*(amPar[3][0][0]+amPar[3][0][1])*b;
 	}
+//	println( amPar[3][0][0]~amPar[3][0][1]);
+//DrawTMatrix(0,vU[0]',{"score"});
+//DrawTMatrix(1,vLambda[0]',{"lambda"});
+//ShowDrawWindow();
 //return vLambda[0]~vU;
 }
 
@@ -2230,14 +2266,12 @@ if (m_iTwoComp==0) FLambdaFilter(&vLambda,&vU,m_vY, vP, m_vStruct);
 else  LambdaFilter2comp(&vLambda, &vU, m_vY, vP, m_vStruct, F);
 decl amPar =  new array[7];
 SplitPara(&amPar,vP,m_vStruct);
-adFunc[0] = 0.5*amPar[3][0][0]*log(amPar[3][0][0]) +0.5*amPar[3][0][1]*log(amPar[3][0][1])-	 0.5*amPar[3][0][0]*(cT)^(-1)*sumc(vLambda[1:]) + (0.5*amPar[3][0][0]-1)*(cT)^(-1)*sumc(log(m_vY[1:]))-0.5*(amPar[3][0][0]+amPar[3][0][1])*(cT)^(-1)*sumc(log(amPar[3][0][0]*m_vY[1:]./exp(vLambda[1:]) + amPar[3][0][1]) )-log(Beta(0.5*amPar[3][0][0],0.5*amPar[3][0][1]));
+adFunc[0] = 0.5*amPar[3][0][0]*log(amPar[3][0][0]) +0.5*amPar[3][0][1]*log(amPar[3][0][1])-	 0.5*amPar[3][0][0]*meanc(vLambda[1:]) + (0.5*amPar[3][0][0]-1)*meanc(log(m_vY[1:]))-0.5*(amPar[3][0][0]+amPar[3][0][1])*meanc(log(amPar[3][0][0]*m_vY[1:]./exp(vLambda[1:]) + amPar[3][0][1]) )-log(Beta(0.5*amPar[3][0][0],0.5*amPar[3][0][1]));
 
 if (isarray(avScore)){  // if analytical score should be used in maximisation
 	decl vScore = new matrix[5][1];
 	decl eps = m_vY./exp(vLambda);
 	FScore(&vScore, eps,vLambda, vP,max(m_vStruct[0], m_vStruct[1]));
-	//println("vScore ", vScore');
-//    decl vScore = DAG2(vP, m_cT, 1);
 	(avScore[0])[0] = vScore[0];
 	(avScore[0])[1] = vScore[1];
 	(avScore[0])[2] = vScore[2];
@@ -2592,66 +2626,77 @@ adFunc[0] = double(log(vP[3])-log(Beta(vP[4],vP[5])) + (m_cT-1)^(-1)*(vP[3]*vP[4
 return 1;
 }
 
-//DySco::Estimate()
-//{
+DySco::Estimate()
+{
 //if (m_vParStart==<> || m_vParStart==0){oxwarning("Startingvalues not defined"); exit(0);}
 //println("m_vParStart", m_vParStart);
-//DoEstimation(m_vParStart);
-//}
+
+decl vpstart = GetFreePar();  // map pars to estimation format
+
+DoEstimation(1); // do the estimation
+
+decl vpfree = isarray(m_vP) ? m_vP[0] : m_vP;
+SetFreePar(vpfree);// map estimated pars to normal format
+SetResult(m_iResult);
+
+//println(m_vPar);
+//println(MaxConvergenceMsg(m_iResult));
+
+if (m_iResult == 0 || m_iResult == 1)
+        m_iModelStatus = MS_ESTIMATED;
+    else {
+        m_iModelStatus = MS_EST_FAILED;
+		oxwarning("Model did not converge. Try e.g. different starting values");println(MaxConvergenceMsg(m_iResult));
+		exit(0);
+		}
+
+Output();
+
+return m_iModelStatus == MS_ESTIMATED;
+}
 	 
 
 DySco::DoEstimation(vPa)
 {	 ClearModel();
-	 //println("vPar start", vPar);
-	 decl ir; decl dFunc; decl time = 0; decl aux;
+decl ir; decl dFunc; decl time = 0; decl aux;
 
-//	InitData();
-//	InitPar(); 
-//	SetPar(vPar);		   
-//	SetParCount(m_cP); 
-//  SetFreePar(vPar);
-//
-	 if (!InitData()) { print("Failed to load data\n"); 
-        return FALSE; 
-	   }  
+if (!InitData()) { print("Failed to load data\n"); 
+      return FALSE; 
+	  }  
 
-	 if (!InitPar()) { print("Failed to load parameters \n"); 
-        return FALSE; 
+if (!InitPar()) { print("Failed to load parameters \n"); 
+      return FALSE; 
 	   }  
 	
-	MaxControl(m_cMaxIter, 0);
+MaxControl(m_cMaxIter, 0);
 
-	decl vPar = new matrix[m_cP][1];
-	vPar = GetFreePar();
-	FreePar(-1);
-	SetPar(vPar);		   
-	SetParCount(m_cP); 
-    SetFreePar(vPar);	 
+decl vPar = new matrix[m_cP][1];
+vPar = GetFreePar();
+FreePar(-1);
+SetPar(vPar);		   
+SetParCount(m_cP); 
+SetFreePar(vPar);	 
 
-	InitData();
-	InitPar(); 
+InitData();
+InitPar(); 
 	
 if(m_vStruct[0]==0 && m_vStruct[1]==0){ // static model estimated
-decl aux2  =DoStaticEstimation();
-vPar = aux2[0]; dFunc = aux2[1]; ir =aux2[2]; time = aux2[3]; aux = aux2[4];
-//println(DoStaticEstimation());
+	decl aux2  = DoStaticEstimation();
+	vPar = aux2[0]; dFunc = aux2[1]; ir =aux2[2]; time = aux2[3]; aux = aux2[4];
 }
 else { // non-static model
 	if (m_iAutoStartValues==1){
-		AutoStartValues();
-		vPar = m_vParStart;
+		AutoStartValues(); vPar = m_vParStart;
 		}
 	else if (m_iAutoStartValues==0)	vPar = m_vParStart;
 	else{
-		oxwarning(println("starting values not defined \n"));
-		exit(0);
+		oxwarning(println("starting values not defined \n"));exit(0);
 		}
-	if (m_vStruct[3]==1 && m_iScore==1) oxwarning("Exact derivatives in numerical optimisation only for models wothout leverage parameter allowed");
-	if (m_vStruct[3]==1 && m_iRoutine==SCORING) oxwarning("Exact derivatives in numerical optimisation only for models wothout leverage parameter allowed");
+if (m_vStruct[3]==1 && m_iScore==0) {oxwarning("Exact derivatives in numerical optimisation only for models wothout leverage parameter allowed");exit(0);}
+if (m_vStruct[3]==1 && m_iRoutine==SCORING) {oxwarning("Exact derivatives in numerical optimisation only for models wothout leverage parameter allowed");exit(0);}
 
 
-	
-  if (m_iModelClass==SCORE) {
+if (m_iModelClass==SCORE) {
     if (m_iRoutine==BFGS){
 	time = timer();
 	if (m_cDist == EX) 				ir = MaxBFGS(EXLik, &vPar, &dFunc, 0, m_iScore);
@@ -2711,13 +2756,13 @@ else { // non-static model
 
 }
 
+// LogNormal variance parameter estimates seperately
 if (m_cDist==LNORM && m_iModelClass==SCORE) { decl maxpq = max(m_vStruct[0], m_vStruct[1]);
 decl vLambda = new matrix[m_iT2sel-m_iT1sel+1][1];
 decl vU = new matrix[m_iT2sel-m_iT1sel+1][1];
 if (m_iTwoComp==0) 	LNORMLambdaFilter(&vLambda,&vU, m_mData[m_iT1sel:m_iT2sel][0], vPar, m_vStruct, m_cT, maxpq);
 else  				LambdaFilter2comp(&vLambda, &vU, m_mData[m_iT1sel:m_iT2sel][0], vPar, m_vStruct, LNORM);
-decl vParaux;// =vPar;
-//println(vParaux);
+decl vParaux;
 if (m_iTwoComp!=1 && m_vStruct[3]!=1){
 	vParaux = vPar[:m_vStruct[0]+m_vStruct[1]];
 	vParaux|= sumc((log(m_mData[m_iT1sel+maxpq:m_iT2sel][0])-vLambda[maxpq:]).^(2))/(m_cT-maxpq);
@@ -2751,10 +2796,8 @@ vPar = vParaux;
 //check parameter restrictions hit?
 CheckPara(vPar);
 }
-
-//SetFreePar(vPar);
+// define globals
 m_vP = vPar;
-
 m_iResult = ir;
 m_cElapsedTime = time/100;
 m_dLogLik = m_cT*dFunc;
@@ -2763,7 +2806,6 @@ m_dLogLik = m_cT*dFunc;
 if (m_iRoutine==SCORING || m_iScore==0) aux = TRUE;
 else aux= FALSE;
 return {vPar, dFunc, ir, time, aux};
-
 }
 
 DySco::GetNumStdErr(vNumStdErr, const vP, const iDist)
@@ -3149,7 +3191,7 @@ println("Starting Estimation ...");
 ///////////////////////////////////////////////////////////////////////////
 DySco::OutputHeader(const sTitle)
 {	println("\n---------     ",sTitle , "    ---------");
-	println("            -- P. Andres & A. Harvey (2012) -- ");
+	println("            -- Philipp Andres (2013) -- ");
     println("%-35s","Estimated model:",GetModelClassString());
 	println("%-35s", "Distribution:",GetDistriString());
 	println("%-35s", "Maximisation Routine:", GetNumAlgoString() );
@@ -3167,7 +3209,7 @@ DySco::OutputHeader(const sTitle)
 DySco::PrintLikStats()
 {
   println("----------------------------------");
- println("log-likelihood: ", m_dLogLik,"\n AIC: ", -2*m_dLogLik+2*m_cP, "\t BIC: ", -2*m_dLogLik+m_cP*log(m_iT2sel) );
+ println("log-likelihood: ", m_dLogLik,"\n AIC: ", -2*m_dLogLik+2*m_cP, "\n BIC: ", -2*m_dLogLik+m_cP*log(m_iT2sel) );
  println("----------------------------------");
 }
 
@@ -3179,7 +3221,8 @@ DySco::PrintLikStatsLatex()
 
 DySco::Output()					
 {
-	SetModelStatus(MS_ESTIMATED);	
+	//SetModelStatus(MS_ESTIMATED);
+	if (m_iModelStatus!= MS_ESTIMATED) {oxwarning("Need to estimate model first");exit(0);}
 	OutputHeader("Package: " ~ GetPackageName()~" , Version: "~GetPackageVersion());
 	if (m_iModelClass == SCORE)   DCSOutputPar();
 	else if (m_iModelClass == MEM) MEMOutputPar();
@@ -3222,6 +3265,14 @@ DySco::DCSOutputPar()
     	for (i = 0; i < rows(m_vP); ++i){			  
 			println("%-15s", aspar[i], " ","%-11.4g", mpar[i][0], " ","%-13.4g",mpar[i][1], " ", "%-13.4g", mpar[i][2], " ","%-8.4g",mpar[i][3]," ","%-8.4f",mpar[i][4]);
 			}
+			
+//		mpar = m_vP ~ vAnaStdErr'~vNumStdErr' ;
+//		println("%-15s","", "%-12s", "Coefficient", "%-14s", "Ana.Std.Error", "%-14s", "Num.Std.Error");
+//    	for (i = 0; i < rows(m_vP); ++i){			  
+//			println("%-15s", aspar[i], " ","%-11.4g", mpar[i][0], " ","%-13.4g",mpar[i][1], " ", "%-13.4g", mpar[i][2]);
+//			}
+
+
 		println("-- * Indicates statistic based on analytical standard errors --");
 	}
 	else {
@@ -3233,11 +3284,21 @@ DySco::DCSOutputPar()
 			println("%-15s", aspar[i], " ","%-11.4g", mpar[i][0], " ","%-10.4g",mpar[i][1], " ","%-7.4g",mpar[i][2]," ","%-7.4f",mpar[i][3]);
 			}
    }
+
+//    	mpar = m_vP ~ vNumStdErr' ;		
+//		println("%-15s","", "%-12s", "Coefficient", "%-11s", "Std.Error");
+//    	for (i = 0; i < rows(m_vP); ++i){			  
+//			println("%-15s", aspar[i], " ","%-11.4g", mpar[i][0], " ","%-10.4g",mpar[i][1]);
+//			}
+//   }
+
+   
 PrintLikStats();
 }
 
 DySco::DCSOutputParLaTex()
 {
+if (m_iModelStatus!= MS_ESTIMATED) {oxwarning("Need to estimate model first");exit(0);}
 decl vNumStdErr= new matrix[1][m_cP];
 //println(m_vP~m_cDist);
 vNumStdErr=GetNumStdErr(&vNumStdErr, m_vP,m_cDist);
@@ -3293,7 +3354,8 @@ DySco::MEMOutputPar()
 //	tval = m_vP./vNumStdErr';
 //	tprob = tailt(fabs(tval), m_cT-cdfloss);
 
-		if (m_vStruct[0]==1 && m_vStruct[1]==1 && m_vStruct[3]==0 && m_iTwoComp==0){
+
+if (m_vStruct[0]==1 && m_vStruct[1]==1 && m_vStruct[3]==0 && m_iTwoComp==0){
 		decl cMaxpq = max(m_vStruct[0], m_vStruct[1]);
 		decl vAnaStdErr = new matrix[1][m_cP];
 		vAnaStdErr = GetAnaStdErr(&vAnaStdErr, m_vP,m_cDist,  m_cT, cMaxpq);
@@ -3306,6 +3368,15 @@ DySco::MEMOutputPar()
 			}
 		println("-- * Indicates statistic based on analytical standard errors --");
 	}
+else {
+		tval = m_vP./vNumStdErr';
+		tprob = tailt(fabs(tval), m_cT-cdfloss);
+    	mpar = m_vP ~ vNumStdErr' ~ tval ~ tprob ;		
+		println("%-15s","", "%-12s", "Coefficient", "%-11s", "Std.Error","%-8s", "t-value", "%-8s", "p-value");
+    	for (i = 0; i < rows(m_vP); ++i){			  
+			println("%-15s", aspar[i], " ","%-11.4g", mpar[i][0], " ","%-10.4g",mpar[i][1], " ","%-7.4g",mpar[i][2]," ","%-7.4f",mpar[i][3]);
+			}
+   }
 
 //
 //
@@ -3351,6 +3422,8 @@ DySco::GetPredict()
 decl vLambda = new matrix[rows(m_mData[][0])][1];
 if (m_iModelClass==SCORE){
 if (m_vStruct[0]>0 && m_vStruct[1]>0){
+//	println("m_vStruct" ,m_vStruct);
+//	println("m_vP ",m_vP);
 	decl vU = new matrix[rows(m_mData[][0])][1];
 	if (m_iTwoComp == 0)		LambdaFilter(&vLambda, &vU, m_mData[][0], m_vP, m_vStruct, m_cDist);
 	else 				  		LambdaFilter2comp(&vLambda, &vU, m_mData[][0], m_vP, m_vStruct, m_cDist);
@@ -3361,6 +3434,23 @@ else m_vLambda = m_vP[0];
 else if (m_iModelClass==MEM){
 	if (m_iTwoComp==0) 		MEMLambdaFilter(&vLambda, m_mData[][0], m_vP, m_vStruct);
 	else 					MEMLambdaFilter2comp(&vLambda, m_mData[][0], m_vP, m_vStruct);
+
+	// get scores
+	decl vU;
+	decl eps = m_mData[1:][0]./exp(vLambda[1:]);
+	decl vShapePara = GetShapePara(m_vP, m_vStruct, m_cDist);
+	
+	if (m_cDist==EX) 				vU = -1+eps;
+	else if (m_cDist==GA)			vU = -vShapePara[0]+eps;
+	else if (m_cDist==WBL)			vU = -1+(eps).^(vShapePara[0]);
+	else if (m_cDist==GGA)			vU = (eps).^(vShapePara[0]) - vShapePara[1];
+	else if (m_cDist==LNORM)		vU = log(eps);
+	else if (m_cDist==LLOG)			vU = -1+2*eps.^(vShapePara[0])./(1+eps.^(vShapePara[0]));
+	else if (m_cDist==BURR)			vU = -1+(vShapePara[1]+1)*eps.^(vShapePara[0])./(1+eps.^(vShapePara[0]));
+	else if (m_cDist==F)			vU = -0.5*vShapePara[0]+ 0.5*(vShapePara[0]+vShapePara[1])*vShapePara[0]*eps./(vShapePara[1]+vShapePara[0]*eps);
+	else if (m_cDist==DAG)			vU = -vShapePara[1]+ (vShapePara[1]+1)*eps.^(vShapePara[0])./(1+eps.^(vShapePara[0]));
+	else if (m_cDist==GB2)			vU = -vShapePara[1]+(vShapePara[1]+vShapePara[2])*eps.^(vShapePara[0])./(1+eps.^(vShapePara[0]));
+	m_vU = vU; delete vU;	
 	}
 
 m_vLambda = vLambda;
@@ -3371,7 +3461,8 @@ if (m_cDist ==EX) 			m_vMu = exp(m_vLambda);
 decl vShapePara = GetShapePara(m_vP, m_vStruct,m_cDist);
 if (m_cDist == GA) 	m_vMu = exp(m_vLambda)*vShapePara[0];
 else if (m_cDist == WBL) 	m_vMu = exp(m_vLambda).*gammafact(1+1/vShapePara);
-else if (m_cDist == LNORM) 	m_vMu = exp(m_vLambda+ 0.5*vShapePara);
+else if (m_cDist == LNORM) 	{println("shape para ", vShapePara); m_vMu =
+exp(m_vLambda+ 0.5*vShapePara); }
 else if (m_cDist == BURR) {
 							decl const_mu = gammafact(1+1/vShapePara[0])*gammafact(vShapePara[1]-1/vShapePara[0])/(gammafact(vShapePara[1]));
 							m_vMu = const_mu*exp(m_vLambda);
@@ -3387,6 +3478,7 @@ DySco::DrawPredict(const iPos)
 {// Purpose: draw actual observations vs predicted observations
 GetPredict();					
 DrawTMatrix(iPos,m_mData[m_iT1sel:m_iT2sel][0]'|m_vMu[m_iT1sel:m_iT2sel]',{"Observations", "Model"});
+//DrawTMatrix(iPos,m_mData[600:1000][0]'|m_vMu[600:1000]',{"Observations", "Model"});
 decl s = sprint(GetDistriString(),"(", m_vStruct[0],",",m_vStruct[1],") model");
 DrawTitle(iPos, s);
 }
@@ -3504,7 +3596,7 @@ else if (m_cDist ==LNORM) 	m_vScore = m_vU;
 else if (m_cDist ==LLOG) 	m_vScore = 0.5*(m_vU+1);
 else if (m_cDist == BURR)	m_vScore = (m_vU+1)./(vShapePara[1]+1);
 else if (m_cDist == DAG) 	m_vScore = (m_vU+vShapePara[1])./(vShapePara[1]+1);
-else if (m_cDist == F)		m_vScore = 2*(m_vU + 0.5*vShapePara[0])./(vShapePara[0]+vShapePara[1]);
+else if (m_cDist == F)		m_vScore = (2*m_vU + vShapePara[0])./(vShapePara[0]+vShapePara[1]);
 else if (m_cDist == GGA) 	m_vScore = m_vU+vShapePara[1];
 else if (m_cDist == GB2)	m_vScore = (m_vU+vShapePara[1])./(vShapePara[1]+vShapePara[2]);
 }
@@ -3694,6 +3786,27 @@ DySco::QQPlotScores(const iPos, const cDist, const vShapePara, const vScores)
  DrawXMatrix(iPos, vTheoQ' |x, {}, x,{});
 }
 
+DySco::QQPlotPits(const iPos,const vScore)
+{
+decl vShapePara = GetShapePara(m_vP, m_vStruct, m_cDist);
+
+decl x = GetPitScore(vScore, vShapePara);
+decl xGaussian = quann(x);
+DrawQQ(iPos, xGaussian', {"PIT QQ Plot"},QQ_N_SE,0,1);
+//ShowDrawWindow();
+}
+
+DySco::QQPlotPits2(const iPos)
+{
+decl vShapePara = GetShapePara(m_vP, m_vStruct, m_cDist);
+
+decl x = GetPitScore(m_vScore, vShapePara);
+decl xGaussian = quann(x);
+DrawQQ(iPos, xGaussian', {"PIT QQ Plot"},QQ_N_SE,0,1);
+ShowDrawWindow();
+}
+
+
 DySco::DrawEpsACF(const iPos)
 {
  DrawAcf(iPos, m_vEps', {}, fabs(log(m_cT)), 1,0,1,2,1);
@@ -3814,6 +3927,34 @@ format(200);
  }
  else oxwarning("LBQTest requires vector of lags as input"); 		  
 }
+
+
+DySco::LBQTestScores(const vLag)
+{// LB Q test
+ // Input:		ma: Tx1 series of inputs  default is m_vEps[0:m_iT2sel]
+ //				vLag: vector of lags to be tested
+ decl  ma = m_vScore[0:m_iT2sel];
+ if (vLag != <>){
+ decl T = sizer(ma);
+ decl Iter = sizer(vLag);
+ decl vACF=<>,q,marg, vT, vLagAux;
+
+format(200);
+ println("\t \t Lag \t \t QStat \t  p-Value")	;
+ for( decl ant=0; ant<Iter;++ant){
+ 	vT = T*ones(1,vLag[ant]);
+	vLagAux = range(1,vLag[ant]);
+	vACF = acf(ma, vLag[ant]);
+	q = T*(T+2)*sumc(vACF[1:vLag[ant]].^(2)./(vT-vLagAux)')	;
+	marg = tailchi(q, vLag[ant]);
+	println(vLag[ant]~q~marg);
+ }
+ println("H0 : No serial correlation ==> Accept H0 when prob. is High [Q < Chisq(lag)]");
+ return 1;
+ }
+ else oxwarning("LBQTest requires vector of lags as input"); 		  
+}
+
 
 
 DySco::APGT(const cd, const ng, const np) 
@@ -4009,6 +4150,8 @@ DySco::FEM2()
 //	               "Mean Absolute Percentage Error(MAPE)", "Adjusted Mean Absolute Percentage Error(AMAPE)", 
 //	               "Theil Inequality Coefficient(TIC)", "Logarithmic Loss Function(LL)", "Predictive Likelihood"},  
 //				    xp');
+
+println(m_mData~m_vEps~m_vScore);
 return 1; 
 }
 
@@ -4352,7 +4495,7 @@ DySco::ReceiveModel()
 {
 	DeSelect(); // clear current variables
 	Modelbase::ReceiveModel();
-	Select(X_VAR, "OxPackGetData"("SelGroup", X_VAR)); 	
+	//Select(X_VAR, "OxPackGetData"("SelGroup", X_VAR)); 	
 	
 	decl asL;
     GetGroupNames(X_VAR,&asL);
@@ -4384,7 +4527,7 @@ return
 		,0
 		,{"BibTeX Citation \tAlt+C", "bibtexcite"}
 		,0
-		,{"Simulate \tAlt+S", "OP_SIMULATE"}
+		//,{"Simulate \tAlt+S", "OP_SIMULATE"}
 	 };
   }	 	
 	if (sMenu == "Test"){
@@ -4411,7 +4554,7 @@ DySco::DoSimDlg()
  adlg = {
  		{"Monte Carlo simulations"},
  		{"Similation Settings", CTL_GROUP,1},
-		{"Choose model", CTL_SELECT, 0, "Gamma|Weibull|Log Logistic|Burr|F|Dagnum", "m_iModel"},
+		{"Choose model", CTL_SELECT, 0, "Gamma|Weibull|Log Logistic|Burr|F|Dagum", "m_iModel"},
 		{"True parameter vector", CTL_MATRIX, <-4;0.96;0.05;2>,"m_vTruePar"},
 		{"Model specifications", CTL_GROUP,1},
 		{"Number of time periods, T", CTL_INT,1000,"m_cT"},
@@ -4501,7 +4644,7 @@ DySco::DoSettingsDlg()
 	adlg =
 	{
 	{"Model settings",CTL_GROUP,1},
-	{"Choose model", CTL_SELECT, 1, "Exponential|Gamma|Weibull|Log Normal|Log Logistic|Burr|Dagnum|F|Generalized Gamma|GB2", "m_iModel"},
+	{"Choose model", CTL_SELECT, 1, "Exponential|Gamma|Weibull|Log Normal|Log Logistic|Burr|Dagum|F|Generalized Gamma|GB2", "m_iModel"},
 	{"# AR lags", CTL_INT, 1, "m_vStruct[0]"},
 	{"# MA lags", CTL_INT, 1, "m_vStruct[1]"},
 	{"Include Leverage Effects", CTL_CHECK, FALSE,"m_vStruct[3]"},
@@ -4542,8 +4685,8 @@ DySco::DoSettingsDlg()
 			aux[1] = aValues[2];
 			aux[2] = aValues[3];
 			aux[3] = aValues[4];
-			aux[4] = aValues[5];
-			
+			aux[4] = aValues[5];		
+
 //			println(aux);
 			SetModel(aux);
 //			vStruct = <aValues[1]; aValues[2]>;
@@ -4641,7 +4784,8 @@ decl adgl, asoptions, aValues;
   {"ACF Epsilons", CTL_CHECK,1,"acfeps"},
   {"ACF Epsilons^(2)",CTL_CHECK,0,"acfesp2"},
   {"PITs Epsilons", CTL_CHECK,1,"piteps"},
-  {"QQ Plot", CTL_CHECK,1, "qqeps"}
+  {"QQ Plot", CTL_CHECK,1, "qqeps"},
+  {"QQ Plot PIT", CTL_CHECK,1,"QQPits"}
   };
   if (m_iModelClass==SCORE) {
   adgl~= {{"Scores", CTL_GROUP,1},
@@ -4672,7 +4816,8 @@ decl adgl, asoptions, aValues;
 	if ("OxPackDialog"("Graphical Diagnostics", adgl ,&asoptions,&aValues))
 	{
 	 GetEps();
-	 if (m_iModelClass==SCORE) GetScores();
+	 //if (m_iModelClass==SCORE)
+	 GetScores();
 	 decl nxt = 0 ; // graph window count
 		if (m_iModelClass==SCORE){
 		if (aValues[0] == 1){
@@ -4695,58 +4840,66 @@ decl adgl, asoptions, aValues;
 			QQPlotDrawEps(nxt,m_vEps[0:m_iT2sel]);
 			nxt += 1;
 			}
-			
+
 		if (aValues[5] == 1){
+			QQPlotPits(nxt, m_vScore[0:m_iT2sel]);
+			nxt += 1;
+			}
+			
+		if (aValues[6] == 1){
 			DrawScoreACF(nxt);
 			nxt += 1;
 			}
-		if (aValues[6] == 1){
+		if (aValues[7] == 1){
 			DrawScoreSqACF(nxt);
 			nxt += 1;
 			}
-		if (aValues[7] == 1){
+		if (aValues[8] == 1){
 			DrawPitScore(nxt, m_vScore[0:m_iT2sel]);
 			nxt += 1;
 			}
-		if (aValues[8] == 1){
+		if (aValues[9] == 1){
 			QQPlotDrawScore(nxt, m_vScore[0:m_iT2sel]);
 			nxt += 1;
 			}
+	
+
+			
 	    if (m_iT2sel+1!=m_cTAll){
 		   	//GetEpsOoS();
-			if (aValues[9]==1){
+			if (aValues[10]==1){
 				DrawPredictOoS(nxt);
 				nxt += 1;
 			}
-			if (aValues[10]==1){
+			if (aValues[11]==1){
 				DrawEpsACFOoS(nxt);
 				nxt += 1;
 				}
-			if (aValues[11]==1){
+			if (aValues[12]==1){
 				DrawEpsSqACF(nxt);
 				nxt += 1;
 				}
-			if (aValues[12]==1){
+			if (aValues[13]==1){
 				DrawPitEpsOoS(nxt, m_vEps[m_iT2sel+1:]);
 				nxt += 1;
 				}
-			if (aValues[13]==1){
+			if (aValues[14]==1){
 				QQPlotDrawEpsOoS(nxt, m_vEps[m_iT2sel+1:]);
 				nxt += 1;
 				}
-			if (aValues[14]==1){
+			if (aValues[15]==1){
 				DrawScoreACFOoS(nxt);
 				nxt += 1;
 				}
-			if (aValues[15]==1){
+			if (aValues[16]==1){
 				DrawScoreSqACFOoS(nxt);
 				nxt += 1;
 				}
-			if (aValues[16]==1){
+			if (aValues[17]==1){
 				DrawPitScoreOoS(nxt, m_vScore[m_iT2sel+1:]);
 				nxt += 1;
 				}
-			if (aValues[17]==1){
+			if (aValues[18]==1){
 				QQPlotDrawScoreOoS(nxt, m_vScore[m_iT2sel+1:]);
 				nxt += 1;
 				}
@@ -4773,24 +4926,30 @@ decl adgl, asoptions, aValues;
 			QQPlotDrawEps(nxt,m_vEps[0:m_iT2sel]);
 			nxt += 1;
 			}
+
+		if (aValues[5] == 1){
+			QQPlotPits(nxt, m_vScore[0:m_iT2sel]);
+			nxt += 1;
+			}
+
 	    if (m_iT2sel+1!=m_cTAll){
-			if (aValues[5]==1){
+			if (aValues[6]==1){
 				DrawPredictOoS(nxt);
 				nxt += 1;
 			}
-			if (aValues[6]==1){
+			if (aValues[7]==1){
 				DrawEpsACFOoS(nxt);
 				nxt += 1;
 				}
-			if (aValues[7]==1){
+			if (aValues[8]==1){
 				DrawEpsSqACF(nxt);
 				nxt += 1;
 				}
-			if (aValues[8]==1){
+			if (aValues[9]==1){
 				DrawPitEpsOoS(nxt, m_vEps[m_iT2sel+1:]);
 				nxt += 1;
 				}
-			if (aValues[9]==1){
+			if (aValues[10]==1){
 				QQPlotDrawEpsOoS(nxt,m_vEps[m_iT2sel+1:]);
 				nxt += 1;
 				}
@@ -4799,6 +4958,171 @@ decl adgl, asoptions, aValues;
 		ShowDrawWindow();
 		}
 }
+
+//DySco::DoTestDlg()
+//{																	 
+//decl adgl, asoptions, aValues;
+// adgl ={
+//  {"In Sample Tests", CTL_GROUP,1},
+//  {"Performance Tests", CTL_CHECK,1, "pertest"},
+//  {"Sample Statistics", CTL_CHECK,1,"Sample"},
+//  {"LBQ Test: Residuals", CTL_CHECK,1, "LBQ"},
+//  { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" },
+//  {"LBQ Test: Residual PITs", CTL_CHECK,1, "LBQ"},
+//  { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" }	
+//  };
+//  if (m_iModelClass==SCORE){
+//  adgl~= {{"LBQ Test: Scores", CTL_CHECK,1, "LBQ2"},
+//  { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" }};
+//  }
+//   // {"Pearson's chi-squared test", CTL_CHECK,0, "Chi2"}
+//
+// if (m_iT2sel+1!=m_cTAll){
+// adgl~= {
+//  {"Out of Sample Tests", CTL_GROUP,1},
+//  {"Performance Tests", CTL_CHECK,1, "pertest"},
+//  {"LBQ Test: Residuals", CTL_CHECK,1, "LBQ"},
+//  { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" },
+//  {"LBQ Test: Residual PITs", CTL_CHECK,1, "LBQ"},
+//  { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" }	
+//  };
+//  if (m_iModelClass==SCORE){
+//  adgl ~={{"LBQ Test: Scores", CTL_CHECK,1, "LBQ2"},
+//  { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags2" }
+//  }; }}
+//   
+//if ("OxPackDialog"("Diagnostic Tests", adgl ,&asoptions,&aValues)){
+//	// println(aValues);
+//	  GetPredict();
+//	  GetEps();
+//	 if (m_iModelClass==SCORE){
+//	 if(aValues[0]==1){
+//	  PrintSampleStats();
+//	  println("");
+//	 }
+//	 if (aValues[1]==1){
+//		println("------------------------------");
+//		//decl aux = 0;//strfind(m_asNames, "Range");
+//		println("-----------------------------------------");
+//		println("---- In-Sample Evaluation Measures ----");
+//		println("-----------------------------------------");
+//		FEM(m_vMu[0:m_iT2sel],m_mData[0:m_iT2sel][0],0); //m_mData[0:m_iT2est][1]);
+//		println("------------------------------");
+//		}
+//	 if (aValues[2] == 1){
+//	 	println("");
+//		println(" --- LBQ Test for Residuals --- ");
+//		LBQTest(m_vEps[0:m_iT2sel], aValues[3]);
+//		println("");
+//		}
+//	if (aValues[4] == 1){
+//	 	println("");
+//		println(" --- LBQ Test for Residual PITs --- ");
+//		LBQStatPitEps(m_vEps[0:m_iT2sel], aValues[5]);
+//		println("");
+//		}
+//
+//	if (aValues[6] ==1){
+//		println(" --- LBQ Test for Scores --- ");
+//		LBQTest(m_vU[0:m_iT2sel], aValues[7]);
+//		println("");
+//		}
+//	if(m_iT2sel+1!=m_cTAll){
+//		println("");
+//		println("-----------------------------------------");
+//		println("------- Out of Sample Statistics ------- ");
+//		println("-----------------------------------------");
+////		if(aValues[6]==1){
+////	  		PrintSampleStats();
+////	  		println("");
+////		 }
+//		if (aValues[8]==1){
+//			println("------------------------------");
+//			println("Forecast Evaluation Measures");
+//			//decl aux = 0; //strfind(m_asNames, "Range");
+//			FEM(m_vMu[m_iT2sel+1:], m_mData[m_iT2sel+1:][0],1);
+//			println("------------------------------");
+//		}
+//
+//		if (aValues[9]==1){
+//			println(" --- LBQ Test for Out of Sample Residuals --- ");
+//			LBQTest(m_vEps[m_iT2sel+1:], aValues[10]);
+//			println("");
+//		}
+//
+//		if (aValues[11]==1){
+//			println(" --- LBQ Test for Out of Sample Residual PITs --- ");
+//			LBQStatPitEps(m_vEps[m_iT2sel+1:], aValues[12]);
+//			println("");
+//		}
+//
+//		
+//		if(aValues[13]==1){
+//			println(" --- LBQ Test for Out of Sample Scores --- ");
+//			LBQTest(m_vU[m_iT2sel+1:], aValues[14]);
+//			println("");
+//		}
+//	}
+//	}
+//	else if (m_iModelClass==MEM){
+//	 if(aValues[0]==1){
+//	  PrintSampleStats();
+//	  println("");
+//	 }
+//	 if (aValues[1]==1){
+//		println("------------------------------");
+//		println("In-Sample Evaluation Measures");
+//		//decl aux = 0; //strfind(m_asNames, "Range");
+//		FEM(m_vMu[0:m_iT2sel],m_mData[0:m_iT2sel][0],0); //m_mData[0:m_iT2est][1]);
+//		println("------------------------------");
+//		}
+//	 
+//	 if (aValues[2] == 1){
+//	 	println("");
+//		println(" --- LBQ Test for Residuals --- ");
+//		LBQTest(m_vEps[0:m_iT2sel], aValues[3]);
+//		println("");
+//		}
+//
+//	if (aValues[4] == 1){
+//	 	println("");
+//		println(" --- LBQ Test for Residual PITs --- ");
+//		LBQStatPitEps(m_vEps[0:m_iT2sel], aValues[5]);
+//		println("");
+//		}
+//
+//
+//	if(m_iT2sel+1!=m_cTAll){
+//		println("");
+//		println("Out of Sample Statistics");
+////		if(aValues[4]==1){
+////	  		PrintSampleStats();
+////	  		println("");
+////		 }
+//		if (aValues[6]==1){
+//			println("------------------------------");
+//			println("Forecast Evaluation Measures");
+//			//decl aux = 0;//strfind(m_asNames, "Range");
+//			FEM(m_vMu[m_iT2sel+1:], m_mData[m_iT2sel+1:][0],1);
+//			println("------------------------------");
+//		}
+//
+//		if (aValues[7]==1){
+//			println(" --- LBQ Test for Out of Sample Residuals --- ");
+//			LBQTest(m_vEps[m_iT2sel+1:], aValues[8]);
+//			println("");
+//		}
+//	
+//		if (aValues[9] == 1){
+//	 		println("");
+//			println(" --- LBQ Test for Out of Sample Residual PITs --- ");
+//			LBQStatPitEps(m_vEps[m_iT2sel+1:], aValues[10]);
+//			println("");
+//
+//	   }}
+//	   }
+//	}
+//}
 
 DySco::DoTestDlg()
 {																	 
@@ -4812,10 +5136,10 @@ decl adgl, asoptions, aValues;
   {"LBQ Test: Residual PITs", CTL_CHECK,1, "LBQ"},
   { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" }	
   };
-  if (m_iModelClass==SCORE){
+ // if (m_iModelClass==SCORE){
   adgl~= {{"LBQ Test: Scores", CTL_CHECK,1, "LBQ2"},
   { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" }};
-  }
+ // }
    // {"Pearson's chi-squared test", CTL_CHECK,0, "Chi2"}
 
  if (m_iT2sel+1!=m_cTAll){
@@ -4827,16 +5151,17 @@ decl adgl, asoptions, aValues;
   {"LBQ Test: Residual PITs", CTL_CHECK,1, "LBQ"},
   { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags" }	
   };
-  if (m_iModelClass==SCORE){
+ // if (m_iModelClass==SCORE){
   adgl ~={{"LBQ Test: Scores", CTL_CHECK,1, "LBQ2"},
   { "Lags", CTL_MATRIX, <5;10;50>, 1, 9, 1, 1, "Lags2" }
-  }; }}
+  }; //}
+  }
    
 if ("OxPackDialog"("Diagnostic Tests", adgl ,&asoptions,&aValues)){
 	// println(aValues);
 	  GetPredict();
 	  GetEps();
-	 if (m_iModelClass==SCORE){
+//	 if (m_iModelClass==SCORE){
 	 if(aValues[0]==1){
 	  PrintSampleStats();
 	  println("");
@@ -4904,68 +5229,67 @@ if ("OxPackDialog"("Diagnostic Tests", adgl ,&asoptions,&aValues)){
 			println("");
 		}
 	}
+//	}
+//	else if (m_iModelClass==MEM){
+//	 if(aValues[0]==1){
+//	  PrintSampleStats();
+//	  println("");
+//	 }
+//	 if (aValues[1]==1){
+//		println("------------------------------");
+//		println("In-Sample Evaluation Measures");
+//		//decl aux = 0; //strfind(m_asNames, "Range");
+//		FEM(m_vMu[0:m_iT2sel],m_mData[0:m_iT2sel][0],0); //m_mData[0:m_iT2est][1]);
+//		println("------------------------------");
+//		}
+//	 
+//	 if (aValues[2] == 1){
+//	 	println("");
+//		println(" --- LBQ Test for Residuals --- ");
+//		LBQTest(m_vEps[0:m_iT2sel], aValues[3]);
+//		println("");
+//		}
+//
+//	if (aValues[4] == 1){
+//	 	println("");
+//		println(" --- LBQ Test for Residual PITs --- ");
+//		LBQStatPitEps(m_vEps[0:m_iT2sel], aValues[5]);
+//		println("");
+//		}
+//
+//
+//	if(m_iT2sel+1!=m_cTAll){
+//		println("");
+//		println("Out of Sample Statistics");
+////		if(aValues[4]==1){
+////	  		PrintSampleStats();
+////	  		println("");
+////		 }
+//		if (aValues[6]==1){
+//			println("------------------------------");
+//			println("Forecast Evaluation Measures");
+//			//decl aux = 0;//strfind(m_asNames, "Range");
+//			FEM(m_vMu[m_iT2sel+1:], m_mData[m_iT2sel+1:][0],1);
+//			println("------------------------------");
+//		}
+//
+//		if (aValues[7]==1){
+//			println(" --- LBQ Test for Out of Sample Residuals --- ");
+//			LBQTest(m_vEps[m_iT2sel+1:], aValues[8]);
+//			println("");
+//		}
+//	
+//		if (aValues[9] == 1){
+//	 		println("");
+//			println(" --- LBQ Test for Out of Sample Residual PITs --- ");
+//			LBQStatPitEps(m_vEps[m_iT2sel+1:], aValues[10]);
+//			println("");
+//
+//	   }
+//}
+//	   }
 	}
-	else if (m_iModelClass==MEM){
-	 if(aValues[0]==1){
-	  PrintSampleStats();
-	  println("");
-	 }
-	 if (aValues[1]==1){
-		println("------------------------------");
-		println("In-Sample Evaluation Measures");
-		//decl aux = 0; //strfind(m_asNames, "Range");
-		FEM(m_vMu[0:m_iT2sel],m_mData[0:m_iT2sel][0],0); //m_mData[0:m_iT2est][1]);
-		println("------------------------------");
-		}
-	 
-	 if (aValues[2] == 1){
-	 	println("");
-		println(" --- LBQ Test for Residuals --- ");
-		LBQTest(m_vEps[0:m_iT2sel], aValues[3]);
-		println("");
-		}
-
-	if (aValues[4] == 1){
-	 	println("");
-		println(" --- LBQ Test for Residual PITs --- ");
-		LBQStatPitEps(m_vEps[0:m_iT2sel], aValues[5]);
-		println("");
-		}
-
-
-	if(m_iT2sel+1!=m_cTAll){
-		println("");
-		println("Out of Sample Statistics");
-//		if(aValues[4]==1){
-//	  		PrintSampleStats();
-//	  		println("");
-//		 }
-		if (aValues[6]==1){
-			println("------------------------------");
-			println("Forecast Evaluation Measures");
-			//decl aux = 0;//strfind(m_asNames, "Range");
-			FEM(m_vMu[m_iT2sel+1:], m_mData[m_iT2sel+1:][0],1);
-			println("------------------------------");
-		}
-
-		if (aValues[7]==1){
-			println(" --- LBQ Test for Out of Sample Residuals --- ");
-			LBQTest(m_vEps[m_iT2sel+1:], aValues[8]);
-			println("");
-		}
-	
-		if (aValues[9] == 1){
-	 		println("");
-			println(" --- LBQ Test for Out of Sample Residual PITs --- ");
-			LBQStatPitEps(m_vEps[m_iT2sel+1:], aValues[10]);
-			println("");
-
-	   }}
-	   }
-	}
-}
-
-		
+}		
 
 DySco::ReceiveMenuChoice(const sMenu)
 {
@@ -5032,11 +5356,7 @@ DySco::ReceiveMenuChoice(const sMenu)
 }
 }
 
-DySco::SetModelSettings(const aValues)
-{
- if(!isarray(aValues))
- return;
-}
+
 
 
 
